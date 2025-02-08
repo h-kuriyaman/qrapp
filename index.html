@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>QRコードスキャン</title>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+</head>
+<body>
+    <h1>QRコードスキャン</h1>
+    <div id="qr-reader" style="width: 300px;"></div>
+    <p>スキャン結果: <span id="result"></span></p>
+
+    <script>
+        function onScanSuccess(decodedText, decodedResult) {
+            document.getElementById("result").innerText = decodedText;
+
+            // GASのWebアプリURL（デプロイ時に取得）
+            const gasUrl = "https://script.google.com/macros/s/XXXXXXXXXXX/exec";
+
+            // GASにデータ送信
+            fetch(gasUrl, {
+                method: "POST",
+                headers: { "Content-Type": "application/x-www-form-urlencoded" },
+                body: "data=" + encodeURIComponent(decodedText)
+            })
+            .then(response => response.text())
+            .then(data => console.log(data))
+            .catch(error => console.error(error));
+        }
+
+        function onScanFailure(error) {
+            console.warn(`QRコード読み取り失敗: ${error}`);
+        }
+
+        let html5QrcodeScanner = new Html5QrcodeScanner(
+            "qr-reader", { fps: 10, qrbox: 250 }
+        );
+        html5QrcodeScanner.render(onScanSuccess, onScanFailure);
+    </script>
+</body>
+</html>
