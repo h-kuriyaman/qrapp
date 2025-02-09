@@ -49,15 +49,15 @@
         const context = canvas.getContext("2d");
         const resultElement = document.getElementById("result");
         const historyTable = document.getElementById("history");
-        let lastScanned = null; // 最後に読み取ったQRコードのデータ
+        let lastScanned = "";  // 重複読み取り防止
 
         // カメラを起動
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then((stream) => {
                 video.srcObject = stream;
-                video.setAttribute("playsinline", true);
+                video.setAttribute("playsinline", true);  // iOS対応
                 video.play();
-                scanQRCode();
+                scanQRCode();  // QRコードスキャン開始
             })
             .catch((err) => {
                 console.error("カメラが使用できません", err);
@@ -65,40 +65,54 @@
             });
 
         function scanQRCode() {
-            canvas.width = video.videoWidth;
-            canvas.height = video.videoHeight;
-            context.drawImage(video, 0, 0, canvas.width, canvas.height);
-            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-            const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+            // 動画の画像データをキャンバスに描画
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
 
-            if (qrCode) {
-                const fullData = qrCode.data;
-                
-                // 以前に読み取ったQRコードと異なる場合のみ処理を行う
-                if (fullData !== lastScanned) {
-                    lastScanned = fullData; // 最後のQRコードデータを更新
-                    resultElement.textContent = fullData;
+                if (qrCode) {
+                    const fullData = qrCode.data;
+                    if (fullData !== lastScanned) {  // 重複スキャン防止
+                        lastScanned = fullData;
 
-                    // Firebaseにデータを送信
-                    const dataRef = database.ref('scannedData');
-                    const newScan = dataRef.push();  // 新しいデータを追加
-                    newScan.set({
-                        fullData: fullData,
-                        head3: fullData.substring(0, 3),
-                        next7: fullData.substring(3, 10)
-                    });
+                        resultElement.textContent = fullData;
 
-                    // スキャン履歴を画面に追加
-                    const row = historyTable.insertRow();
-                    row.insertCell(0).textContent = fullData;
-                    row.insertCell(1).textContent = fullData.substring(0, 3);
-                    row.insertCell(2).textContent = fullData.substring(3, 10);
+                        // Firebaseにデータを送信
+                        const dataRef = database.ref('scannedData');
+                        const newScan = dataRef.push();  // 新しいデータを追加
+                        newScan.set({
+                            fullData: fullData,
+                            head3: fullData.substring(0, 3),
+                            next7: fullData.substring(3, 10)
+                        });
+
+                        // スキャン履歴を画面に追加
+                        const row = historyTable.insertRow();
+                        row.insertCell(0).textContent = fullData;
+                        row.insertCell(1).textContent = fullData.substring(0, 3);
+                        row.insertCell(2).textContent = fullData.substring(3, 10);
+                    }
                 }
             }
-
-            requestAnimationFrame(scanQRCode); // 継続的にQRコードをスキャン
+            requestAnimationFrame(scanQRCode);  // 継続的にQRコードをスキャン
         }
 
+        // Firebaseのデータ変更を監視
+        const dataRef = database.ref('scannedData');
+        dataRef.on('child_added', function(snapshot) {
+            const scanData = snapshot.val();
+            
+            // スキャン履歴をテーブルに追加
+            const row = historyTable.insertRow();
+            row.insertCell(0).textContent = scanData.fullData;
+            row.insertCell(1).textContent = scanData.head3;
+            row.insertCell(2).textContent = scanData.next7;
+        });
+
+        // CSVをダウンロード
         function downloadCSV() {
             let csvContent = "元のデータ,頭3文字,次の7文字\n";
             const rows = historyTable.getElementsByTagName("tr");
