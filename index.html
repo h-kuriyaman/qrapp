@@ -6,7 +6,7 @@
     <title>QRコードリーダー</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr"></script>  <!-- QRコード解析ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr"></script>
 </head>
 <body>
     <h2>QRコードリーダー</h2>
@@ -50,6 +50,8 @@
         const resultElement = document.getElementById("result");
         const historyTable = document.getElementById("history");
 
+        let isScanning = false;  // QRコードの重複読み取りを防ぐフラグ
+
         // カメラを起動
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then((stream) => {
@@ -64,7 +66,10 @@
             });
 
         function scanQRCode() {
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            if (video.readyState === video.HAVE_ENOUGH_DATA && !isScanning) {
+                // QRコードが読み取られたら処理開始
+                isScanning = true;  // スキャン中フラグをオン
+
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -93,7 +98,13 @@
                     row.insertCell(1).textContent = head3;
                     row.insertCell(2).textContent = next7;
                 }
+
+                // 一定時間後に再スキャンできるようにする
+                setTimeout(() => {
+                    isScanning = false;  // スキャン中フラグをオフ
+                }, 1000);  // 1秒後に再スキャン
             }
+
             requestAnimationFrame(scanQRCode);
         }
 
@@ -133,7 +144,7 @@
 
             for (let i = 1; i < rows.length; i++) {
                 let cols = rows[i].getElementsByTagName("td");
-                csvContent += `${cols[0].textContent},${cols[1].textContent},${cols[2].textContent}\n`;
+                csvContent += `"${cols[0].textContent}","${cols[1].textContent}","${cols[2].textContent}"\n`;
             }
 
             // Blob作成時にUTF-8を指定
