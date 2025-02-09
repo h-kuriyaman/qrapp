@@ -14,7 +14,7 @@
     <button onclick="addQR()">追加</button>
     <ul id="qrList"></ul>
 
-    <!-- QRコードカメラ表示用 -->
+    <!-- QRコードのカメラ表示 -->
     <div id="reader" style="width: 300px; height: 300px;"></div>
 
     <script>
@@ -33,11 +33,12 @@
         const app = firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // 🔹 QRコードを追加
+        // 🔹 QRコードを追加する
         function addQR() {
             const qrValue = document.getElementById("qrInput").value;
             if (qrValue) {
-                database.ref("qrcodes").push(qrValue);  // Firebase Realtime Databaseに追加
+                // FirebaseにQRコードの内容を追加
+                database.ref("qrcodes").push(qrValue);
                 document.getElementById("qrInput").value = "";  // 入力欄をクリア
             }
         }
@@ -45,7 +46,7 @@
         // 🔹 データをリアルタイムで取得
         database.ref("qrcodes").on("value", (snapshot) => {
             const qrList = document.getElementById("qrList");
-            qrList.innerHTML = ""; // リストをクリア
+            qrList.innerHTML = "";  // リストをクリア
 
             snapshot.forEach((childSnapshot) => {
                 const li = document.createElement("li");
@@ -54,29 +55,30 @@
             });
         });
 
-        // 🔹 QRコードを読み取る処理
+        // 🔹 QRコードを読み取った際の処理
         function onScanSuccess(decodedText, decodedResult) {
-            // QRコードの読み取り成功時の処理
-            document.getElementById("qrInput").value = decodedText;  // 読み取ったQRコードの値を入力欄に表示
-            addQR();  // QRコードを追加する
+            // QRコードの読み取り成功時にその内容を入力フィールドに表示
+            document.getElementById("qrInput").value = decodedText;
+            addQR();  // QRコードをFirebaseに追加
         }
 
-        // QRコードの読み取り設定
+        // QRコードのカメラ表示と読み取り開始
         const html5QrCode = new Html5Qrcode("reader");
         const qrCodeConfig = {
-            fps: 10,
-            qrbox: 250
+            fps: 10,    // フレーム毎秒
+            qrbox: 250  // QRコード読み取りエリアのサイズ
         };
 
-        // QRコードカメラを開始
+        // 背面カメラを使用してQRコード読み取り開始
         html5QrCode.start(
             { facingMode: "environment" },  // 背面カメラを使用
             qrCodeConfig,
-            onScanSuccess
+            onScanSuccess   // QRコード読み取り成功時に呼び出される関数
         ).catch((err) => {
             console.error("QRコードの読み取りに失敗しました:", err);
         });
     </script>
+
 </body>
 <script type="module">
   // Import the functions you need from the SDKs you need
