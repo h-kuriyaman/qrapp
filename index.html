@@ -48,18 +48,13 @@
         const historyTable = document.getElementById("history");
         let isScanning = false;
 
-        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
-            .then((stream) => {
-                video.srcObject = stream;
-                video.setAttribute("playsinline", true);
-                video.play();
-                scanQRCode();
-            })
-            .catch((err) => {
-                console.error("カメラが使用できません", err);
-                alert("カメラのアクセスが拒否されているか、デバイスが見つかりません。ブラウザの設定を確認してください。");
-            });
+        // ページが読み込まれた時に履歴を削除してから再読み込み
+        document.addEventListener("DOMContentLoaded", function () {
+            // 履歴テーブルをリセット
+            historyTable.innerHTML = "";
+        });
 
+        // QRコードをスキャンする関数
         function scanQRCode() {
             if (video.readyState === video.HAVE_ENOUGH_DATA && !isScanning) {
                 isScanning = true;
@@ -76,10 +71,12 @@
 
                     resultElement.textContent = fullData;
 
+                    // Firebaseにスキャンデータを保存
                     const dataRef = database.ref('scannedData');
                     const newScan = dataRef.push();
                     newScan.set({ fullData, head3, next7 });
 
+                    // 履歴に追加
                     addHistoryRow(fullData, head3, next7);
                 }
                 setTimeout(() => { isScanning = false; }, 1000);
@@ -87,6 +84,7 @@
             requestAnimationFrame(scanQRCode);
         }
 
+        // 履歴テーブルに行を追加する関数
         function addHistoryRow(fullData, head3, next7) {
             const row = historyTable.insertRow();
             row.insertCell(0).textContent = fullData;
@@ -94,6 +92,7 @@
             row.insertCell(2).textContent = next7;
         }
 
+        // CSVダウンロード機能
         function downloadCSV() {
             let csvContent = "";
             const rows = historyTable.getElementsByTagName("tr");
@@ -112,6 +111,20 @@
             document.body.removeChild(link);
         }
 
+        // QRコードのスキャン開始
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then((stream) => {
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true);
+                video.play();
+                scanQRCode();
+            })
+            .catch((err) => {
+                console.error("カメラが使用できません", err);
+                alert("カメラのアクセスが拒否されているか、デバイスが見つかりません。ブラウザの設定を確認してください。");
+            });
+
+        // Firebaseから新しいデータが追加されたときに履歴を更新
         const dataRef = database.ref('scannedData');
         dataRef.on('child_added', (snapshot) => {
             const data = snapshot.val();
