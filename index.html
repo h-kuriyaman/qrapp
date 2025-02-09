@@ -48,12 +48,6 @@
         const historyTable = document.getElementById("history");
         let isScanning = false;
 
-        function clearFirebaseData() {
-            const dataRef = database.ref('scannedData');
-            dataRef.remove();
-        }
-        clearFirebaseData();
-
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then((stream) => {
                 video.srcObject = stream;
@@ -62,7 +56,8 @@
                 scanQRCode();
             })
             .catch((err) => {
-                alert("カメラのアクセスが拒否されているか、デバイスが見つかりません。");
+                console.error("カメラが使用できません", err);
+                alert("カメラのアクセスが拒否されているか、デバイスが見つかりません。ブラウザの設定を確認してください。");
             });
 
         function scanQRCode() {
@@ -84,6 +79,8 @@
                     const dataRef = database.ref('scannedData');
                     const newScan = dataRef.push();
                     newScan.set({ fullData, head3, next7 });
+
+                    addHistoryRow(fullData, head3, next7);
                 }
                 setTimeout(() => { isScanning = false; }, 1000);
             }
@@ -103,14 +100,16 @@
 
             for (let i = 1; i < rows.length; i++) {
                 let cols = rows[i].getElementsByTagName("td");
-                csvContent += `${cols[0].textContent},${cols[1].textContent},${cols[2].textContent}\n`;
+                csvContent += `${cols[1].textContent},${cols[2].textContent}\n`;
             }
 
-            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const blob = new Blob([csvContent], { type: "text/csv" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             link.download = "qr_scan_history.csv";
+            document.body.appendChild(link);
             link.click();
+            document.body.removeChild(link);
         }
 
         const dataRef = database.ref('scannedData');
