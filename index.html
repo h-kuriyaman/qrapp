@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QRコードリーダー</title>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr"></script>  <!-- 🔹 QRコード解析ライブラリ -->
 </head>
 <body>
     <h2>QRコードリーダー</h2>
@@ -24,11 +27,6 @@
     </table>
     <button onclick="downloadCSV()">CSVをダウンロード</button>
 
-    <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.3.2/jsQR.js"></script>
-
     <script>
         // 🔹 Firebaseの設定
         const firebaseConfig = {
@@ -43,15 +41,14 @@
 
         // Firebaseの初期化
         const app = firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
+        const database = firebase.database(app);
 
-        // QRコードリーダー関連
+        // カメラとQRコードリーダーの設定
         const video = document.getElementById("video");
         const canvas = document.getElementById("canvas");
         const context = canvas.getContext("2d");
         const resultElement = document.getElementById("result");
         const historyTable = document.getElementById("history");
-        let scannedData = [];
 
         // カメラを起動
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
@@ -61,7 +58,10 @@
                 video.play();
                 scanQRCode();
             })
-            .catch((err) => console.error("カメラが使用できません", err));
+            .catch((err) => {
+                console.error("カメラが使用できません", err);
+                alert("カメラのアクセスが拒否されているか、デバイスが見つかりません。ブラウザの設定を確認してください。");
+            });
 
         function scanQRCode() {
             if (video.readyState === video.HAVE_ENOUGH_DATA) {
@@ -78,40 +78,45 @@
                     
                     resultElement.textContent = fullData;
 
-                    // 🔹 Firebaseにデータを送信（重複チェック）
-                    if (!scannedData.includes(fullData)) {
-                        scannedData.push(fullData);
-                        const newEntryRef = database.ref("scannedData").push();
-                        newEntryRef.set({
-                            fullData: fullData,
-                            head3: head3,
-                            next7: next7
-                        });
-                    }
+                    // Firebaseにデータを送信
+                    const dataRef = database.ref('scannedData');
+                    const newScan = dataRef.push();  // 新しいデータを追加
+                    newScan.set({
+                        fullData: fullData,
+                        head3: head3,
+                        next7: next7
+                    });
+
+                    // スキャン履歴を画面に追加
+                    const row = historyTable.insertRow();
+                    row.insertCell(0).textContent = fullData;
+                    row.insertCell(1).textContent = head3;
+                    row.insertCell(2).textContent = next7;
                 }
             }
             requestAnimationFrame(scanQRCode);
         }
 
-        // 🔹 Firebaseのデータ変更を監視し、リアルタイムで履歴を更新
-        database.ref("scannedData").on("child_added", (snapshot) => {
-            const data = snapshot.val();
-            if (!scannedData.includes(data.fullData)) {
-                scannedData.push(data.fullData);
-                const row = historyTable.insertRow();
-                row.insertCell(0).textContent = data.fullData;
-                row.insertCell(1).textContent = data.head3;
-                row.insertCell(2).textContent = data.next7;
-            }
+        // Firebaseのデータ変更を監視
+        const dataRef = database.ref('scannedData');
+        dataRef.on('child_added', function(snapshot) {
+            const scanData = snapshot.val();
+            
+            // スキャン履歴をテーブルに追加
+            const row = historyTable.insertRow();
+            row.insertCell(0).textContent = scanData.fullData;
+            row.insertCell(1).textContent = scanData.head3;
+            row.insertCell(2).textContent = scanData.next7;
         });
 
         function downloadCSV() {
             let csvContent = "元のデータ,頭3文字,次の7文字\n";
-            scannedData.forEach(data => {
-                const head3 = data.substring(0, 3);
-                const next7 = data.substring(3, 10);
-                csvContent += `${data},${head3},${next7}\n`;
-            });
+            const rows = historyTable.getElementsByTagName("tr");
+            
+            for (let i = 1; i < rows.length; i++) { // 1行目（ヘッダー）をスキップ
+                let cols = rows[i].getElementsByTagName("td");
+                csvContent += `${cols[0].textContent},${cols[1].textContent},${cols[2].textContent}\n`;
+            }
 
             const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
             const link = document.createElement("a");
