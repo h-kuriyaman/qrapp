@@ -25,11 +25,11 @@
     <button onclick="downloadCSV()">CSVをダウンロード</button>
 
     <!-- Firebase SDK -->
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
+    <script type="module" src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
     <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script> <!-- QRコード解析用 -->
 
-    <script>
+    <script type="module">
         // Firebaseの初期化
         const firebaseConfig = {
             apiKey: "AIzaSyBXjJ5dro9a1T_h1VSUH0mgRRgDZh75_sQ",
@@ -41,7 +41,8 @@
             appId: "1:232515270216:web:3e90029e1c17e369e7ca7d"
         };
 
-        firebase.initializeApp(firebaseConfig);
+        // Firebase初期化
+        const app = firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
         const dataRef = database.ref("scannedData");
 
@@ -126,7 +127,7 @@
             let csvContent = "元のデータ,頭3文字,次の7文字\n";
 
             // Firebaseのデータを取得
-            dataRef.once('value', function(snapshot) {
+            database.ref('scannedData').once('value', function(snapshot) {
                 snapshot.forEach(function(childSnapshot) {
                     const data = childSnapshot.val();
                     csvContent += `${data.fullData},${data.head3},${data.next7}\n`;
