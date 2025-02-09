@@ -50,17 +50,8 @@
         const resultElement = document.getElementById("result");
         const historyTable = document.getElementById("history");
 
-        // ページを更新またはアクセスするたびに履歴を削除
-        function clearFirebaseData() {
-            const dataRef = database.ref('scannedData');
-            dataRef.remove()
-                .then(() => {
-                    console.log("Firebaseのデータが削除されました");
-                })
-                .catch((error) => {
-                    console.error("データ削除に失敗しました", error);
-                });
-        }
+        // QRコードがすでに読み取られたかを確認するフラグ
+        let isScanned = false;
 
         // カメラを起動
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
@@ -77,7 +68,7 @@
 
         // QRコードのスキャン処理
         function scanQRCode() {
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            if (video.readyState === video.HAVE_ENOUGH_DATA && !isScanned) {
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -90,6 +81,9 @@
                     const next7 = fullData.substring(3, 10);
 
                     resultElement.textContent = fullData;
+
+                    // QRコードが読み取られたらフラグを立てて重複を防ぐ
+                    isScanned = true;
 
                     // Firebaseにデータを送信
                     const dataRef = database.ref('scannedData');
@@ -147,6 +141,18 @@
         window.onload = function() {
             clearFirebaseData();
         };
+
+        // Firebaseのデータ削除
+        function clearFirebaseData() {
+            const dataRef = database.ref('scannedData');
+            dataRef.remove()
+                .then(() => {
+                    console.log("Firebaseのデータが削除されました");
+                })
+                .catch((error) => {
+                    console.error("データ削除に失敗しました", error);
+                });
+        }
     </script>
 </body>
 </html>
