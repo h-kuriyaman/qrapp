@@ -6,79 +6,110 @@
     <title>QRコード同期</title>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
-    <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.17.0/xlsx.full.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
 </head>
 <body>
     <h1>QRコードリスト</h1>
-    <input type="text" id="qrInput" placeholder="QRコードを入力">
-    <button onclick="addQR()">追加</button>
     <ul id="qrList"></ul>
 
     <!-- QRコードカメラ表示用 -->
     <div id="reader" style="width: 300px; height: 300px;"></div>
+    <p id="result">スキャン結果: </p>
+    
+    <button id="exportCsvBtn">CSVエクスポート</button>
+    <button id="exportExcelBtn">Excelエクスポート</button>
 
     <script>
-        // 🔹 Firebaseの設定（ここを自分の情報に変更）
-  const firebaseConfig = {
-    apiKey: "AIzaSyBXjJ5dro9a1T_h1VSUH0mgRRgDZh75_sQ",
-    authDomain: "gakko-digital-list.firebaseapp.com",
-    databaseURL: "https://gakko-digital-list-default-rtdb.firebaseio.com",
-    projectId: "gakko-digital-list",
-    storageBucket: "gakko-digital-list.firebasestorage.app",
-    messagingSenderId: "232515270216",
-    appId: "1:232515270216:web:3e90029e1c17e369e7ca7d",
-    measurementId: "G-TRQQZFGZNX"
-  };
+        // 🔹 Firebaseの設定（あなたの情報を入力）
+        const firebaseConfig = {
+            apiKey: "AIzaSyBXjJ5dro9a1T_h1VSUH0mgRRgDZh75_sQ",
+            authDomain: "gakko-digital-list.firebaseapp.com",
+            databaseURL: "https://gakko-digital-list-default-rtdb.firebaseio.com/",
+            projectId: "gakko-digital-list",
+            storageBucket: "gakko-digital-list.appspot.com",
+            messagingSenderId: "232515270216",
+            appId: "1:232515270216:web:3e90029e1c17e369e7ca7d"
+        };
 
         // 🔹 Firebase 初期化
         const app = firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // 🔹 QRコードを追加
-        function addQR() {
-            const qrValue = document.getElementById("qrInput").value;
-            if (qrValue) {
-                // Firebase Realtime DatabaseにQRコード内容を保存
-                database.ref("qrcodes").push(qrValue);
-                document.getElementById("qrInput").value = "";  // 入力欄をクリア
-            }
-        }
+        let qrData = [];  // QRコードのデータを保存する配列
 
-        // 🔹 データをリアルタイムで取得
+        // 🔹 データをリアルタイムで取得して表示
         database.ref("qrcodes").on("value", (snapshot) => {
             const qrList = document.getElementById("qrList");
             qrList.innerHTML = "";  // リストをクリア
+            qrData = [];  // 配列をリセット
 
             snapshot.forEach((childSnapshot) => {
+                const qrValue = childSnapshot.val();
+                qrData.push(qrValue);  // QRコードの内容を配列に追加
+
                 const li = document.createElement("li");
-                li.textContent = childSnapshot.val();  // QRコードの値をリストに表示
+                li.textContent = qrValue;  // QRコードの内容をリストに表示
                 qrList.appendChild(li);
             });
         });
 
-        // 🔹 QRコードを読み取る処理
+        // 🔹 QRコードを読み取った際に呼ばれる関数
         function onScanSuccess(decodedText, decodedResult) {
-            // QRコードの読み取り成功時にその内容を入力フィールドに表示
-            document.getElementById("qrInput").value = decodedText;
-            addQR();  // QRコードをFirebaseに追加
+            // スキャン結果を表示
+            document.getElementById("result").innerText = "スキャン結果: " + decodedText;
+
+            // スキャン結果をFirebaseに保存
+            database.ref("qrcodes").push(decodedText);
+        }
+
+        function onScanError(errorMessage) {
+            console.warn(errorMessage);
         }
 
         // QRコードのカメラ表示と読み取り開始
-        const html5QrCode = new Html5Qrcode("reader");
-        const qrCodeConfig = {
-            fps: 10,    // フレーム毎秒
-            qrbox: 250  // QRコード読み取りエリアのサイズ
-        };
+        function startQRScanner() {
+            let html5QrcodeScanner = new Html5QrcodeScanner(
+                "reader", { fps: 10, qrbox: 250 });
+            html5QrcodeScanner.render(onScanSuccess, onScanError);
+        }
 
-        // 画面表示領域にカメラを使ってQRコードを読み取る
-        html5QrCode.start(
-            { facingMode: "environment" },  // 背面カメラを使用
-            qrCodeConfig,
-            onScanSuccess   // QRコード読み取り成功時に呼び出される関数
-        ).catch((err) => {
-            console.error("QRコードの読み取りに失敗しました:", err);
-            alert("カメラにアクセスできません。カメラへのアクセス許可が必要です。");
-        });
+        // ページが読み込まれた時にQRコードスキャナーを起動
+        window.onload = function() {
+            startQRScanner();
+        }
+
+        // 🔹 CSVエクスポート
+        function exportToCSV() {
+            const csvData = qrData.map(qrValue => {
+                const first3 = qrValue.slice(0, 3);  // 頭3文字
+                const next7 = qrValue.slice(3, 10); // その後7文字
+                return `${qrValue},${first3},${next7}`;
+            });
+            const csvContent = "QRコード,頭3文字,その後7文字\n" + csvData.join("\n");
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
+            saveAs(blob, "qrcodes.csv");
+        }
+
+        // 🔹 Excelエクスポート
+        function exportToExcel() {
+            const ws = XLSX.utils.aoa_to_sheet([
+                ["QRコード", "頭3文字", "その後7文字"],
+                ...qrData.map(qrValue => {
+                    const first3 = qrValue.slice(0, 3);
+                    const next7 = qrValue.slice(3, 10);
+                    return [qrValue, first3, next7];
+                })
+            ]);
+            const wb = XLSX.utils.book_new();
+            XLSX.utils.book_append_sheet(wb, ws, "QRコード");
+            XLSX.writeFile(wb, "qrcodes.xlsx");
+        }
+
+        // エクスポートボタンのイベントリスナー
+        document.getElementById("exportCsvBtn").addEventListener("click", exportToCSV);
+        document.getElementById("exportExcelBtn").addEventListener("click", exportToExcel);
     </script>
 </body>
 </html>
