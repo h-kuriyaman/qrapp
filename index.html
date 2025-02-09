@@ -106,16 +106,21 @@
                     });
 
                     // 履歴を画面に追加
-                    const row = historyTable.insertRow();
-                    row.insertCell(0).textContent = fullData;
-                    row.insertCell(1).textContent = head3;
-                    row.insertCell(2).textContent = next7;
+                    addHistoryRow(fullData, head3, next7);
                 }
                 setTimeout(() => {
                     isScanning = false;
                 }, 1000); // 1秒後にスキャンフラグをリセット
             }
             requestAnimationFrame(scanQRCode);
+        }
+
+        // 履歴の行を追加
+        function addHistoryRow(fullData, head3, next7) {
+            const row = historyTable.insertRow();
+            row.insertCell(0).textContent = fullData;
+            row.insertCell(1).textContent = head3;
+            row.insertCell(2).textContent = next7;
         }
 
         // CSVダウンロード
@@ -134,6 +139,13 @@
             link.download = "qr_scan_history.csv";
             link.click();
         }
+
+        // Firebaseのデータ更新をリアルタイムで監視
+        const dataRef = database.ref('scannedData');
+        dataRef.on('child_added', (snapshot) => {
+            const data = snapshot.val();
+            addHistoryRow(data.fullData, data.head3, data.next7);
+        });
 
     </script>
 </body>
