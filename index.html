@@ -49,7 +49,8 @@
         const context = canvas.getContext("2d");
         const resultElement = document.getElementById("result");
         const historyTable = document.getElementById("history");
-        let lastScanned = "";  // 重複読み取り防止
+        let lastScanned = "";  // 最後にスキャンしたQRコードデータ
+        let isScanning = false;  // スキャン中かどうかのフラグ
 
         // カメラを起動
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
@@ -75,8 +76,11 @@
 
                 if (qrCode) {
                     const fullData = qrCode.data;
-                    if (fullData !== lastScanned) {  // 重複スキャン防止
-                        lastScanned = fullData;
+
+                    // 重複スキャンを防ぐ
+                    if (fullData !== lastScanned && !isScanning) {
+                        isScanning = true;  // スキャン中フラグを立てる
+                        lastScanned = fullData;  // スキャンしたデータを記録
 
                         resultElement.textContent = fullData;
 
@@ -94,6 +98,11 @@
                         row.insertCell(0).textContent = fullData;
                         row.insertCell(1).textContent = fullData.substring(0, 3);
                         row.insertCell(2).textContent = fullData.substring(3, 10);
+
+                        // 1秒後にスキャンフラグをリセット
+                        setTimeout(() => {
+                            isScanning = false;
+                        }, 1000);
                     }
                 }
             }
