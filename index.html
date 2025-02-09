@@ -6,7 +6,7 @@
     <title>QRコードリーダー</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr"></script>  <!-- QRコード解析ライブラリ -->
+    <script src="https://cdn.jsdelivr.net/npm/jsqr"></script>
 </head>
 <body>
     <h2>QRコードリーダー</h2>
@@ -39,7 +39,7 @@
             appId: "1:232515270216:web:3e90029e1c17e369e7ca7d"
         };
 
-        // Firebaseの初期化（修正）
+        // Firebaseの初期化
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
@@ -99,6 +99,11 @@
                     row.insertCell(0).textContent = fullData;
                     row.insertCell(1).textContent = head3;
                     row.insertCell(2).textContent = next7;
+
+                    // スキャン処理を一定時間無効にする（例：1秒）
+                    setTimeout(() => {
+                        isScanned = false;  // 再度スキャン可能にする
+                    }, 1000); // 1秒後に再度スキャンを可能にする
                 }
             }
             requestAnimationFrame(scanQRCode);
