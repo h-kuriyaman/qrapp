@@ -39,7 +39,7 @@
             appId: "1:232515270216:web:3e90029e1c17e369e7ca7d"
         };
 
-        // Firebaseの初期化（修正）
+        // Firebaseの初期化
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
@@ -49,7 +49,7 @@
         const context = canvas.getContext("2d");
         const resultElement = document.getElementById("result");
         const historyTable = document.getElementById("history");
-        let isProcessing = false; // QRコードが読み取られたかどうかのフラグ
+        let lastScanned = null; // 最後に読み取ったQRコードのデータ
 
         // カメラを起動
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
@@ -65,19 +65,18 @@
             });
 
         function scanQRCode() {
-            if (video.readyState === video.HAVE_ENOUGH_DATA && !isProcessing) {
-                isProcessing = true; // QRコード読み取り中
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+            canvas.width = video.videoWidth;
+            canvas.height = video.videoHeight;
+            context.drawImage(video, 0, 0, canvas.width, canvas.height);
+            const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+            const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
 
-                if (qrCode) {
-                    const fullData = qrCode.data;
-                    const head3 = fullData.substring(0, 3);
-                    const next7 = fullData.substring(3, 10);
-                    
+            if (qrCode) {
+                const fullData = qrCode.data;
+                
+                // 以前に読み取ったQRコードと異なる場合のみ処理を行う
+                if (fullData !== lastScanned) {
+                    lastScanned = fullData; // 最後のQRコードデータを更新
                     resultElement.textContent = fullData;
 
                     // Firebaseにデータを送信
@@ -85,36 +84,20 @@
                     const newScan = dataRef.push();  // 新しいデータを追加
                     newScan.set({
                         fullData: fullData,
-                        head3: head3,
-                        next7: next7
+                        head3: fullData.substring(0, 3),
+                        next7: fullData.substring(3, 10)
                     });
 
                     // スキャン履歴を画面に追加
                     const row = historyTable.insertRow();
                     row.insertCell(0).textContent = fullData;
-                    row.insertCell(1).textContent = head3;
-                    row.insertCell(2).textContent = next7;
-
-                    // 一度QRコードを処理したら再度スキャンしないようにする
-                    setTimeout(() => {
-                        isProcessing = false; // 処理が終わったのでフラグを戻す
-                    }, 1000); // 1秒後に再度スキャンできるようにする
+                    row.insertCell(1).textContent = fullData.substring(0, 3);
+                    row.insertCell(2).textContent = fullData.substring(3, 10);
                 }
             }
-            requestAnimationFrame(scanQRCode);
-        }
 
-        // Firebaseのデータ変更を監視
-        const dataRef = database.ref('scannedData');
-        dataRef.on('child_added', function(snapshot) {
-            const scanData = snapshot.val();
-            
-            // スキャン履歴をテーブルに追加
-            const row = historyTable.insertRow();
-            row.insertCell(0).textContent = scanData.fullData;
-            row.insertCell(1).textContent = scanData.head3;
-            row.insertCell(2).textContent = scanData.next7;
-        });
+            requestAnimationFrame(scanQRCode); // 継続的にQRコードをスキャン
+        }
 
         function downloadCSV() {
             let csvContent = "元のデータ,頭3文字,次の7文字\n";
