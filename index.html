@@ -14,7 +14,7 @@
     <button onclick="addQR()">追加</button>
     <ul id="qrList"></ul>
 
-    <!-- QRコードのカメラ表示 -->
+    <!-- QRコードカメラ表示用 -->
     <div id="reader" style="width: 300px; height: 300px;"></div>
 
     <script>
@@ -33,11 +33,11 @@
         const app = firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // 🔹 QRコードを追加する
+        // 🔹 QRコードを追加
         function addQR() {
             const qrValue = document.getElementById("qrInput").value;
             if (qrValue) {
-                // FirebaseにQRコードの内容を追加
+                // Firebase Realtime DatabaseにQRコード内容を保存
                 database.ref("qrcodes").push(qrValue);
                 document.getElementById("qrInput").value = "";  // 入力欄をクリア
             }
@@ -55,7 +55,7 @@
             });
         });
 
-        // 🔹 QRコードを読み取った際の処理
+        // 🔹 QRコードを読み取る処理
         function onScanSuccess(decodedText, decodedResult) {
             // QRコードの読み取り成功時にその内容を入力フィールドに表示
             document.getElementById("qrInput").value = decodedText;
@@ -78,8 +78,8 @@
             console.error("QRコードの読み取りに失敗しました:", err);
         });
     </script>
-
 </body>
+
 <script type="module">
   // Import the functions you need from the SDKs you need
   import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.0/firebase-app.js";
