@@ -6,7 +6,7 @@
     <title>QRコードリーダー</title>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/jsqr"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr"></script>  <!-- QRコード解析ライブラリ -->
 </head>
 <body>
     <h2>QRコードリーダー</h2>
@@ -39,25 +39,18 @@
             appId: "1:232515270216:web:3e90029e1c17e369e7ca7d"
         };
 
-        // Firebase初期化
+        // Firebaseの初期化（修正）
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
+        // カメラとQRコードリーダーの設定
         const video = document.getElementById("video");
         const canvas = document.getElementById("canvas");
         const context = canvas.getContext("2d");
         const resultElement = document.getElementById("result");
         const historyTable = document.getElementById("history");
 
-        // ページロード時に履歴削除
-        window.onload = () => {
-            const dataRef = database.ref('scannedData');
-            dataRef.remove()
-                .then(() => console.log("Firebaseのデータが削除されました"))
-                .catch((error) => console.error("データ削除に失敗しました", error));
-        };
-
-        // カメラの起動とQRコードスキャン
+        // カメラを起動
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then((stream) => {
                 video.srcObject = stream;
@@ -80,39 +73,58 @@
 
                 if (qrCode) {
                     const fullData = qrCode.data;
-                    if (fullData && fullData.trim() !== "") {
-                        const head3 = fullData.substring(0, 3);
-                        const next7 = fullData.substring(3, 10);
+                    const head3 = fullData.substring(0, 3);
+                    const next7 = fullData.substring(3, 10);
+                    
+                    resultElement.textContent = fullData;
 
-                        resultElement.textContent = fullData;
+                    // Firebaseにデータを送信
+                    const dataRef = database.ref('scannedData');
+                    const newScan = dataRef.push();  // 新しいデータを追加
+                    newScan.set({
+                        fullData: fullData,
+                        head3: head3,
+                        next7: next7
+                    });
 
-                        // Firebaseにデータを送信
-                        const dataRef = database.ref('scannedData');
-                        const newScan = dataRef.push();
-                        newScan.set({ fullData, head3, next7 });
-
-                        // 履歴を追加
-                        const row = historyTable.insertRow();
-                        row.insertCell(0).textContent = fullData;
-                        row.insertCell(1).textContent = head3;
-                        row.insertCell(2).textContent = next7;
-                    } else {
-                        console.warn("空のデータを読み取りました");
-                    }
+                    // スキャン履歴を画面に追加
+                    const row = historyTable.insertRow();
+                    row.insertCell(0).textContent = fullData;
+                    row.insertCell(1).textContent = head3;
+                    row.insertCell(2).textContent = next7;
                 }
             }
             requestAnimationFrame(scanQRCode);
         }
 
-        // Firebaseデータを監視
+        // Firebaseのデータ変更を監視
         const dataRef = database.ref('scannedData');
         dataRef.on('child_added', function(snapshot) {
             const scanData = snapshot.val();
+            
+            // スキャン履歴をテーブルに追加
             const row = historyTable.insertRow();
             row.insertCell(0).textContent = scanData.fullData;
             row.insertCell(1).textContent = scanData.head3;
             row.insertCell(2).textContent = scanData.next7;
         });
+
+        // Firebaseのデータを削除
+        function clearFirebaseData() {
+            const dataRef = database.ref('scannedData');
+            dataRef.remove()
+                .then(() => {
+                    console.log("Firebaseのデータが削除されました");
+                })
+                .catch((error) => {
+                    console.error("データ削除に失敗しました", error);
+                });
+        }
+
+        // ページ読み込み時に履歴を削除
+        window.onload = function() {
+            clearFirebaseData();
+        }
 
         // CSVダウンロード
         function downloadCSV() {
@@ -124,7 +136,10 @@
                 csvContent += `${cols[0].textContent},${cols[1].textContent},${cols[2].textContent}\n`;
             }
 
-            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            // Blob作成時にUTF-8を指定
+            const blob = new Blob([csvContent], { type: "text/csv;charset=UTF-8" });
+
+            // ブラウザでのダウンロード処理
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             link.download = "qr_scan_history.csv";
