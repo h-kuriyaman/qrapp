@@ -25,11 +25,11 @@
     <button onclick="downloadCSV()">CSVをダウンロード</button>
 
     <!-- Firebase SDK -->
-    <script type="module" src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
-    <script type="module" src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
-    <script src="https://unpkg.com/jsqr/dist/jsQR.js"></script> <!-- QRコード解析用 -->
-
     <script type="module">
+        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js';
+        import { getDatabase, ref, push, onChildAdded, get } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js';
+        import jsQR from 'https://unpkg.com/jsqr/dist/jsQR.js';
+
         // Firebaseの初期化
         const firebaseConfig = {
             apiKey: "AIzaSyBXjJ5dro9a1T_h1VSUH0mgRRgDZh75_sQ",
@@ -42,9 +42,9 @@
         };
 
         // Firebase初期化
-        const app = firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        const dataRef = database.ref("scannedData");
+        const app = initializeApp(firebaseConfig);
+        const database = getDatabase(app);
+        const dataRef = ref(database, "scannedData");
 
         // QRコードリーダー関連
         const video = document.getElementById("video");
@@ -91,7 +91,7 @@
                     resultElement.textContent = fullData;
 
                     // Firebaseにデータを送信
-                    dataRef.push({
+                    push(dataRef, {
                         fullData: fullData,
                         head3: head3,
                         next7: next7
@@ -110,7 +110,7 @@
         }
 
         // Firebaseのデータ変更を監視
-        dataRef.on('child_added', function(snapshot) {
+        onChildAdded(dataRef, function(snapshot) {
             const scanData = snapshot.val();
             addToHistory(scanData.fullData, scanData.head3, scanData.next7);
         });
@@ -127,7 +127,7 @@
             let csvContent = "元のデータ,頭3文字,次の7文字\n";
 
             // Firebaseのデータを取得
-            database.ref('scannedData').once('value', function(snapshot) {
+            get(dataRef).then(function(snapshot) {
                 snapshot.forEach(function(childSnapshot) {
                     const data = childSnapshot.val();
                     csvContent += `${data.fullData},${data.head3},${data.next7}\n`;
