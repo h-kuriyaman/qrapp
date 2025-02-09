@@ -53,6 +53,12 @@
         let lastScannedTime = 0;  // 最後にスキャンした時間を保存
         const scanInterval = 1000;  // 1秒間隔でのスキャンを許可
 
+        // ページ読み込み時に履歴を削除
+        window.onload = function() {
+            clearHistory();  // 履歴をクリア
+            clearFirebaseData();  // Firebaseデータをクリア
+        };
+
         // カメラを起動
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then((stream) => {
@@ -119,6 +125,7 @@
             row.insertCell(2).textContent = scanData.next7;
         });
 
+        // CSVダウンロード処理
         function downloadCSV() {
             let csvContent = "元のデータ,頭3文字,次の7文字\n";
             const rows = historyTable.getElementsByTagName("tr");
@@ -133,6 +140,26 @@
             link.href = URL.createObjectURL(blob);
             link.download = "qr_scan_history.csv";
             link.click();
+        }
+
+        // 履歴をクリアする
+        function clearHistory() {
+            const historyRows = historyTable.getElementsByTagName("tr");
+            while (historyRows.length > 1) {  // 1行目（ヘッダー）を除き、全て削除
+                historyTable.deleteRow(1);
+            }
+        }
+
+        // Firebaseのデータ削除
+        function clearFirebaseData() {
+            const dataRef = database.ref('scannedData');
+            dataRef.remove()
+                .then(() => {
+                    console.log("Firebaseのデータが削除されました");
+                })
+                .catch((error) => {
+                    console.error("データ削除に失敗しました", error);
+                });
         }
     </script>
 </body>
