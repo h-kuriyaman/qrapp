@@ -50,8 +50,8 @@
         const resultElement = document.getElementById("result");
         const historyTable = document.getElementById("history");
 
-        // QRコードがすでに読み取られたかを確認するフラグ
-        let isScanned = false;
+        let lastScannedTime = 0;  // 最後にスキャンした時間を保存
+        const scanInterval = 1000;  // 1秒間隔でのスキャンを許可
 
         // カメラを起動
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
@@ -66,44 +66,42 @@
                 alert("カメラのアクセスが拒否されているか、デバイスが見つかりません。ブラウザの設定を確認してください。");
             });
 
-        // QRコードのスキャン処理
         function scanQRCode() {
-            if (video.readyState === video.HAVE_ENOUGH_DATA && !isScanned) {
-                canvas.width = video.videoWidth;
-                canvas.height = video.videoHeight;
-                context.drawImage(video, 0, 0, canvas.width, canvas.height);
-                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
-                const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                const currentTime = new Date().getTime();
+                
+                // 前回スキャンしてから1秒経過している場合のみスキャンを実行
+                if (currentTime - lastScannedTime > scanInterval) {
+                    canvas.width = video.videoWidth;
+                    canvas.height = video.videoHeight;
+                    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                    const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                    const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
 
-                if (qrCode) {
-                    const fullData = qrCode.data;
-                    const head3 = fullData.substring(0, 3);
-                    const next7 = fullData.substring(3, 10);
+                    if (qrCode) {
+                        const fullData = qrCode.data;
+                        const head3 = fullData.substring(0, 3);
+                        const next7 = fullData.substring(3, 10);
 
-                    resultElement.textContent = fullData;
+                        resultElement.textContent = fullData;
 
-                    // QRコードが読み取られたらフラグを立てて重複を防ぐ
-                    isScanned = true;
+                        // Firebaseにデータを送信
+                        const dataRef = database.ref('scannedData');
+                        const newScan = dataRef.push();  // 新しいデータを追加
+                        newScan.set({
+                            fullData: fullData,
+                            head3: head3,
+                            next7: next7
+                        });
 
-                    // Firebaseにデータを送信
-                    const dataRef = database.ref('scannedData');
-                    const newScan = dataRef.push();  // 新しいデータを追加
-                    newScan.set({
-                        fullData: fullData,
-                        head3: head3,
-                        next7: next7
-                    });
+                        // スキャン履歴を画面に追加
+                        const row = historyTable.insertRow();
+                        row.insertCell(0).textContent = fullData;
+                        row.insertCell(1).textContent = head3;
+                        row.insertCell(2).textContent = next7;
 
-                    // スキャン履歴を画面に追加
-                    const row = historyTable.insertRow();
-                    row.insertCell(0).textContent = fullData;
-                    row.insertCell(1).textContent = head3;
-                    row.insertCell(2).textContent = next7;
-
-                    // スキャン処理を一定時間無効にする（例：1秒）
-                    setTimeout(() => {
-                        isScanned = false;  // 再度スキャン可能にする
-                    }, 1000); // 1秒後に再度スキャンを可能にする
+                        lastScannedTime = currentTime;  // 最後にスキャンした時間を更新
+                    }
                 }
             }
             requestAnimationFrame(scanQRCode);
@@ -113,7 +111,7 @@
         const dataRef = database.ref('scannedData');
         dataRef.on('child_added', function(snapshot) {
             const scanData = snapshot.val();
-
+            
             // スキャン履歴をテーブルに追加
             const row = historyTable.insertRow();
             row.insertCell(0).textContent = scanData.fullData;
@@ -121,7 +119,6 @@
             row.insertCell(2).textContent = scanData.next7;
         });
 
-        // CSVをダウンロード（UTF-8 BOM付き）
         function downloadCSV() {
             let csvContent = "元のデータ,頭3文字,次の7文字\n";
             const rows = historyTable.getElementsByTagName("tr");
@@ -131,32 +128,11 @@
                 csvContent += `${cols[0].textContent},${cols[1].textContent},${cols[2].textContent}\n`;
             }
 
-            // BOM付きのUTF-8エンコーディングを指定してBlobを作成
-            const bom = '\ufeff'; // BOM（Byte Order Mark）
-            const blob = new Blob([bom + csvContent], { type: "text/csv;charset=utf-8;" });
-
-            // ダウンロードリンクを作成
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
             link.download = "qr_scan_history.csv";
             link.click();
-        }
-
-        // ページアクセス時にFirebaseデータ削除
-        window.onload = function() {
-            clearFirebaseData();
-        };
-
-        // Firebaseのデータ削除
-        function clearFirebaseData() {
-            const dataRef = database.ref('scannedData');
-            dataRef.remove()
-                .then(() => {
-                    console.log("Firebaseのデータが削除されました");
-                })
-                .catch((error) => {
-                    console.error("データ削除に失敗しました", error);
-                });
         }
     </script>
 </body>
