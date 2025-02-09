@@ -3,34 +3,34 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>QRコードスキャンとFirebase連携</title>
+    <title>QRコードリーダー</title>
+</head>
+<body>
+    <h2>QRコードリーダー</h2>
+    <video id="video" width="300" height="200" autoplay></video>
+    <canvas id="canvas" hidden></canvas>
+    <p>読み取ったQRコード: <span id="result"></span></p>
+
+    <h3>スキャン履歴</h3>
+    <table border="1">
+        <thead>
+            <tr>
+                <th>元のデータ</th>
+                <th>頭3文字</th>
+                <th>次の7文字</th>
+            </tr>
+        </thead>
+        <tbody id="history"></tbody>
+    </table>
+    <button onclick="downloadCSV()">CSVをダウンロード</button>
 
     <!-- Firebase SDK -->
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js"></script>
-
-    <!-- html5-qrcode SDK -->
-    <script src="https://unpkg.com/html5-qrcode/minified/html5-qrcode.min.js"></script>
-
-    <style>
-        /* QRコード読み取り領域のスタイル */
-        #reader {
-            width: 100%;
-            height: 300px;
-            border: 1px solid #000;
-        }
-    </style>
-</head>
-<body>
-    <h1>QRコードスキャンとFirebase連携</h1>
-
-    <div id="reader"></div>
-    <p id="result">スキャン結果: </p>
-    <h2>QRコードリスト</h2>
-    <ul id="qrList"></ul>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jsQR/1.3.2/jsQR.js"></script>
 
     <script>
-        // 🔹 Firebaseの設定（あなたの情報を入力）
+        // 🔹 Firebaseの設定
         const firebaseConfig = {
             apiKey: "AIzaSyBXjJ5dro9a1T_h1VSUH0mgRRgDZh75_sQ",
             authDomain: "gakko-digital-list.firebaseapp.com",
@@ -41,57 +41,83 @@
             appId: "1:232515270216:web:3e90029e1c17e369e7ca7d"
         };
 
-        // 🔹 Firebase 初期化
+        // Firebaseの初期化
         const app = firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
 
-        // 🔹 QRコードが正常に読み取られた場合の処理
-        function onScanSuccess(decodedText, decodedResult) {
-            document.getElementById("result").innerText = "スキャン結果: " + decodedText;
-            // QRコードをFirebaseに追加
-            database.ref("qrcodes").push(decodedText);
+        // QRコードリーダー関連
+        const video = document.getElementById("video");
+        const canvas = document.getElementById("canvas");
+        const context = canvas.getContext("2d");
+        const resultElement = document.getElementById("result");
+        const historyTable = document.getElementById("history");
+        let scannedData = [];
+
+        // カメラを起動
+        navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
+            .then((stream) => {
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true);
+                video.play();
+                scanQRCode();
+            })
+            .catch((err) => console.error("カメラが使用できません", err));
+
+        function scanQRCode() {
+            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+                canvas.width = video.videoWidth;
+                canvas.height = video.videoHeight;
+                context.drawImage(video, 0, 0, canvas.width, canvas.height);
+                const imageData = context.getImageData(0, 0, canvas.width, canvas.height);
+                const qrCode = jsQR(imageData.data, imageData.width, imageData.height);
+
+                if (qrCode) {
+                    const fullData = qrCode.data;
+                    const head3 = fullData.substring(0, 3);
+                    const next7 = fullData.substring(3, 10);
+                    
+                    resultElement.textContent = fullData;
+
+                    // 🔹 Firebaseにデータを送信（重複チェック）
+                    if (!scannedData.includes(fullData)) {
+                        scannedData.push(fullData);
+                        const newEntryRef = database.ref("scannedData").push();
+                        newEntryRef.set({
+                            fullData: fullData,
+                            head3: head3,
+                            next7: next7
+                        });
+                    }
+                }
+            }
+            requestAnimationFrame(scanQRCode);
         }
 
-        // 🔹 QRコード読み取り失敗時のエラー処理
-        function onScanError(errorMessage) {
-            console.warn(errorMessage);
-        }
-
-        // 🔹 QRコードスキャナーを開始する
-        function startQRScanner() {
-            const html5QrCode = new Html5Qrcode("reader");
-            const qrCodeConfig = {
-                fps: 10,    // フレーム毎秒
-                qrbox: 250  // QRコード読み取りエリアのサイズ
-            };
-
-            // 背面カメラでQRコードを読み取る
-            html5QrCode.start(
-                { facingMode: "environment" },  // 背面カメラを使用
-                qrCodeConfig,
-                onScanSuccess,  // QRコード読み取り成功時のコールバック関数
-                onScanError     // QRコード読み取りエラー時のコールバック関数
-            ).catch((err) => {
-                console.error("QRコードの読み取りに失敗しました:", err);
-                alert("カメラにアクセスできません。カメラへのアクセス許可が必要です。");
-            });
-        }
-
-        // 🔹 リアルタイムでQRコードデータを表示
-        database.ref("qrcodes").on("value", (snapshot) => {
-            const qrList = document.getElementById("qrList");
-            qrList.innerHTML = "";  // 既存のリストをクリア
-
-            snapshot.forEach((childSnapshot) => {
-                const li = document.createElement("li");
-                li.textContent = childSnapshot.val();  // QRコードの値をリストに表示
-                qrList.appendChild(li);
-            });
+        // 🔹 Firebaseのデータ変更を監視し、リアルタイムで履歴を更新
+        database.ref("scannedData").on("child_added", (snapshot) => {
+            const data = snapshot.val();
+            if (!scannedData.includes(data.fullData)) {
+                scannedData.push(data.fullData);
+                const row = historyTable.insertRow();
+                row.insertCell(0).textContent = data.fullData;
+                row.insertCell(1).textContent = data.head3;
+                row.insertCell(2).textContent = data.next7;
+            }
         });
 
-        // ページが読み込まれた時にQRコードスキャナーを起動
-        window.onload = function() {
-            startQRScanner();
+        function downloadCSV() {
+            let csvContent = "元のデータ,頭3文字,次の7文字\n";
+            scannedData.forEach(data => {
+                const head3 = data.substring(0, 3);
+                const next7 = data.substring(3, 10);
+                csvContent += `${data},${head3},${next7}\n`;
+            });
+
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "qr_scan_history.csv";
+            link.click();
         }
     </script>
 </body>
