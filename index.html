@@ -4,6 +4,9 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>QRコードリーダー</title>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsqr"></script>  <!-- QRコード解析ライブラリ -->
 </head>
 <body>
     <h2>QRコードリーダー</h2>
@@ -24,13 +27,8 @@
     </table>
     <button onclick="downloadCSV()">CSVをダウンロード</button>
 
-    <!-- Firebase SDK -->
-    <script type="module">
-        import { initializeApp } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-app.js';
-        import { getDatabase, ref, push, onChildAdded, get } from 'https://www.gstatic.com/firebasejs/9.6.1/firebase-database.js';
-        import jsQR from 'https://unpkg.com/jsqr/dist/jsQR.js';
-
-        // Firebaseの初期化
+    <script>
+        // Firebaseの設定
         const firebaseConfig = {
             apiKey: "AIzaSyBXjJ5dro9a1T_h1VSUH0mgRRgDZh75_sQ",
             authDomain: "gakko-digital-list.firebaseapp.com",
@@ -41,20 +39,17 @@
             appId: "1:232515270216:web:3e90029e1c17e369e7ca7d"
         };
 
-        // Firebase初期化
-        const app = initializeApp(firebaseConfig);
-        const database = getDatabase(app);
-        const dataRef = ref(database, "scannedData");
+        // Firebaseの初期化（修正）
+        firebase.initializeApp(firebaseConfig);
+        const database = firebase.database();
 
-        // QRコードリーダー関連
+        // カメラとQRコードリーダーの設定
         const video = document.getElementById("video");
         const canvas = document.getElementById("canvas");
         const context = canvas.getContext("2d");
         const resultElement = document.getElementById("result");
         const historyTable = document.getElementById("history");
-
-        let lastScanned = ""; // 直前のQRコード
-        let scanning = false; // スキャン中フラグ
+        let isProcessing = false; // QRコードが読み取られたかどうかのフラグ
 
         // カメラを起動
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
@@ -64,10 +59,14 @@
                 video.play();
                 scanQRCode();
             })
-            .catch((err) => console.error("カメラが使用できません", err));
+            .catch((err) => {
+                console.error("カメラが使用できません", err);
+                alert("カメラのアクセスが拒否されているか、デバイスが見つかりません。ブラウザの設定を確認してください。");
+            });
 
         function scanQRCode() {
-            if (video.readyState === video.HAVE_ENOUGH_DATA) {
+            if (video.readyState === video.HAVE_ENOUGH_DATA && !isProcessing) {
+                isProcessing = true; // QRコード読み取り中
                 canvas.width = video.videoWidth;
                 canvas.height = video.videoHeight;
                 context.drawImage(video, 0, 0, canvas.width, canvas.height);
@@ -76,70 +75,61 @@
 
                 if (qrCode) {
                     const fullData = qrCode.data;
-
-                    // 同じQRコードの連続登録を防ぐ
-                    if (fullData === lastScanned || scanning) {
-                        requestAnimationFrame(scanQRCode);
-                        return;
-                    }
-
-                    scanning = true;  // スキャン中フラグON
-                    lastScanned = fullData;  // 直前のQRコードを保存
-
                     const head3 = fullData.substring(0, 3);
                     const next7 = fullData.substring(3, 10);
+                    
                     resultElement.textContent = fullData;
 
                     // Firebaseにデータを送信
-                    push(dataRef, {
+                    const dataRef = database.ref('scannedData');
+                    const newScan = dataRef.push();  // 新しいデータを追加
+                    newScan.set({
                         fullData: fullData,
                         head3: head3,
                         next7: next7
                     });
 
                     // スキャン履歴を画面に追加
-                    addToHistory(fullData, head3, next7);
+                    const row = historyTable.insertRow();
+                    row.insertCell(0).textContent = fullData;
+                    row.insertCell(1).textContent = head3;
+                    row.insertCell(2).textContent = next7;
 
-                    // 3秒待ってから次のスキャンを許可
+                    // 一度QRコードを処理したら再度スキャンしないようにする
                     setTimeout(() => {
-                        scanning = false;
-                    }, 3000);
+                        isProcessing = false; // 処理が終わったのでフラグを戻す
+                    }, 1000); // 1秒後に再度スキャンできるようにする
                 }
             }
             requestAnimationFrame(scanQRCode);
         }
 
         // Firebaseのデータ変更を監視
-        onChildAdded(dataRef, function(snapshot) {
+        const dataRef = database.ref('scannedData');
+        dataRef.on('child_added', function(snapshot) {
             const scanData = snapshot.val();
-            addToHistory(scanData.fullData, scanData.head3, scanData.next7);
-        });
-
-        // スキャン履歴をテーブルに追加
-        function addToHistory(fullData, head3, next7) {
+            
+            // スキャン履歴をテーブルに追加
             const row = historyTable.insertRow();
-            row.insertCell(0).textContent = fullData;
-            row.insertCell(1).textContent = head3;
-            row.insertCell(2).textContent = next7;
-        }
+            row.insertCell(0).textContent = scanData.fullData;
+            row.insertCell(1).textContent = scanData.head3;
+            row.insertCell(2).textContent = scanData.next7;
+        });
 
         function downloadCSV() {
             let csvContent = "元のデータ,頭3文字,次の7文字\n";
+            const rows = historyTable.getElementsByTagName("tr");
+            
+            for (let i = 1; i < rows.length; i++) { // 1行目（ヘッダー）をスキップ
+                let cols = rows[i].getElementsByTagName("td");
+                csvContent += `${cols[0].textContent},${cols[1].textContent},${cols[2].textContent}\n`;
+            }
 
-            // Firebaseのデータを取得
-            get(dataRef).then(function(snapshot) {
-                snapshot.forEach(function(childSnapshot) {
-                    const data = childSnapshot.val();
-                    csvContent += `${data.fullData},${data.head3},${data.next7}\n`;
-                });
-
-                // CSVファイルを作成・ダウンロード
-                const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
-                const link = document.createElement("a");
-                link.href = URL.createObjectURL(blob);
-                link.download = "qr_scan_history.csv";
-                link.click();
-            });
+            const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8;" });
+            const link = document.createElement("a");
+            link.href = URL.createObjectURL(blob);
+            link.download = "qr_scan_history.csv";
+            link.click();
         }
     </script>
 </body>
