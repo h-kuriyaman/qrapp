@@ -19,15 +19,16 @@
 
     <script>
         // 🔹 Firebaseの設定（ここを自分の情報に変更）
-        const firebaseConfig = {
-            apiKey: "AIzaSyBXjJ5dro9a1T_h1VSUH0mgRRgDZh75_sQ",
-            authDomain: "gakko-digital-list.firebaseapp.com",
-            databaseURL: "https://gakko-digital-list-default-rtdb.firebaseio.com/",
-            projectId: "gakko-digital-list",
-            storageBucket: "gakko-digital-list.appspot.com",
-            messagingSenderId: "送信者ID",
-            appId: "1:232515270216:web:3e90029e1c17e369e7ca7d"
-        };
+  const firebaseConfig = {
+    apiKey: "AIzaSyBXjJ5dro9a1T_h1VSUH0mgRRgDZh75_sQ",
+    authDomain: "gakko-digital-list.firebaseapp.com",
+    databaseURL: "https://gakko-digital-list-default-rtdb.firebaseio.com",
+    projectId: "gakko-digital-list",
+    storageBucket: "gakko-digital-list.firebasestorage.app",
+    messagingSenderId: "232515270216",
+    appId: "1:232515270216:web:3e90029e1c17e369e7ca7d",
+    measurementId: "G-TRQQZFGZNX"
+  };
 
         // 🔹 Firebase 初期化
         const app = firebase.initializeApp(firebaseConfig);
@@ -69,38 +70,15 @@
             qrbox: 250  // QRコード読み取りエリアのサイズ
         };
 
-        // 背面カメラを使用してQRコード読み取り開始
+        // 画面表示領域にカメラを使ってQRコードを読み取る
         html5QrCode.start(
             { facingMode: "environment" },  // 背面カメラを使用
             qrCodeConfig,
             onScanSuccess   // QRコード読み取り成功時に呼び出される関数
         ).catch((err) => {
             console.error("QRコードの読み取りに失敗しました:", err);
+            alert("カメラにアクセスできません。カメラへのアクセス許可が必要です。");
         });
     </script>
 </body>
-<script type="module">
-  // Import the functions you need from the SDKs you need
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/11.3.0/firebase-app.js";
-  import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.3.0/firebase-analytics.js";
-  // TODO: Add SDKs for Firebase products that you want to use
-  // https://firebase.google.com/docs/web/setup#available-libraries
-
-  // Your web app's Firebase configuration
-  // For Firebase JS SDK v7.20.0 and later, measurementId is optional
-  const firebaseConfig = {
-    apiKey: "AIzaSyBXjJ5dro9a1T_h1VSUH0mgRRgDZh75_sQ",
-    authDomain: "gakko-digital-list.firebaseapp.com",
-    databaseURL: "https://gakko-digital-list-default-rtdb.firebaseio.com",
-    projectId: "gakko-digital-list",
-    storageBucket: "gakko-digital-list.firebasestorage.app",
-    messagingSenderId: "232515270216",
-    appId: "1:232515270216:web:3e90029e1c17e369e7ca7d",
-    measurementId: "G-TRQQZFGZNX"
-  };
-
-  // Initialize Firebase
-  const app = initializeApp(firebaseConfig);
-  const analytics = getAnalytics(app);
-</script>
 </html>
