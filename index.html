@@ -50,7 +50,6 @@
         const resultElement = document.getElementById("result");
         const historyTable = document.getElementById("history");
         let isScanning = false;
-        let isCameraActive = false;  // カメラがすでに使用されているかを追跡
 
         // Firebaseのデータ削除
         function clearFirebaseData() {
@@ -70,13 +69,10 @@
         // カメラを起動
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then((stream) => {
-                if (!isCameraActive) {
-                    video.srcObject = stream;
-                    video.setAttribute("playsinline", true);
-                    video.play();
-                    isCameraActive = true;
-                    scanQRCode();
-                }
+                video.srcObject = stream;
+                video.setAttribute("playsinline", true);
+                video.play();
+                scanQRCode();
             })
             .catch((err) => {
                 console.error("カメラが使用できません", err);
