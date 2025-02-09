@@ -48,10 +48,13 @@
         const historyTable = document.getElementById("history");
         let isScanning = false;
 
-        // ページが読み込まれた時に履歴を削除してから再読み込み
+        // ページが読み込まれた時に履歴をリセット
         document.addEventListener("DOMContentLoaded", function () {
-            // 履歴テーブルをリセット
-            historyTable.innerHTML = "";
+            historyTable.innerHTML = ""; // 履歴テーブルをリセット
+
+            // Firebase データを削除
+            const dataRef = database.ref('scannedData');
+            dataRef.remove();  // データ削除
         });
 
         // QRコードをスキャンする関数
@@ -128,6 +131,10 @@
         const dataRef = database.ref('scannedData');
         dataRef.on('child_added', (snapshot) => {
             const data = snapshot.val();
+            // 履歴テーブルに追加する前に一度テーブルをクリアしてから追加
+            if (historyTable.rows.length > 1) {
+                historyTable.innerHTML = ""; // すべての行を削除
+            }
             addHistoryRow(data.fullData, data.head3, data.next7);
         });
     </script>
