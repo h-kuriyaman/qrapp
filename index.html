@@ -40,7 +40,7 @@
 
         firebase.initializeApp(firebaseConfig);
         const database = firebase.database();
-
+        
         const video = document.getElementById("video");
         const canvas = document.getElementById("canvas");
         const context = canvas.getContext("2d");
@@ -48,16 +48,12 @@
         const historyTable = document.getElementById("history");
         let isScanning = false;
 
-        // ページが読み込まれた時に履歴をリセット
+        // ページが読み込まれた時に履歴を削除
         document.addEventListener("DOMContentLoaded", function () {
             historyTable.innerHTML = ""; // 履歴テーブルをリセット
-
-            // Firebase データを削除
-            const dataRef = database.ref('scannedData');
-            dataRef.remove();  // データ削除
+            database.ref('scannedData').remove(); // Firebaseデータを削除
         });
 
-        // QRコードをスキャンする関数
         function scanQRCode() {
             if (video.readyState === video.HAVE_ENOUGH_DATA && !isScanning) {
                 isScanning = true;
@@ -74,20 +70,15 @@
 
                     resultElement.textContent = fullData;
 
-                    // Firebaseにスキャンデータを保存
                     const dataRef = database.ref('scannedData');
                     const newScan = dataRef.push();
                     newScan.set({ fullData, head3, next7 });
-
-                    // 履歴に追加
-                    addHistoryRow(fullData, head3, next7);
                 }
                 setTimeout(() => { isScanning = false; }, 1000);
             }
             requestAnimationFrame(scanQRCode);
         }
 
-        // 履歴テーブルに行を追加する関数
         function addHistoryRow(fullData, head3, next7) {
             const row = historyTable.insertRow();
             row.insertCell(0).textContent = fullData;
@@ -95,16 +86,13 @@
             row.insertCell(2).textContent = next7;
         }
 
-        // CSVダウンロード機能
         function downloadCSV() {
             let csvContent = "";
             const rows = historyTable.getElementsByTagName("tr");
-
-            for (let i = 1; i < rows.length; i++) {
+            for (let i = 0; i < rows.length; i++) {
                 let cols = rows[i].getElementsByTagName("td");
-                csvContent += `${cols[1].textContent},${cols[2].textContent}\n`;
+                csvContent += `${cols[0].textContent},${cols[1].textContent},${cols[2].textContent}\n`;
             }
-
             const blob = new Blob([csvContent], { type: "text/csv" });
             const link = document.createElement("a");
             link.href = URL.createObjectURL(blob);
@@ -114,7 +102,6 @@
             document.body.removeChild(link);
         }
 
-        // QRコードのスキャン開始
         navigator.mediaDevices.getUserMedia({ video: { facingMode: "environment" } })
             .then((stream) => {
                 video.srcObject = stream;
@@ -127,14 +114,8 @@
                 alert("カメラのアクセスが拒否されているか、デバイスが見つかりません。ブラウザの設定を確認してください。");
             });
 
-        // Firebaseから新しいデータが追加されたときに履歴を更新
-        const dataRef = database.ref('scannedData');
-        dataRef.on('child_added', (snapshot) => {
+        database.ref('scannedData').on('child_added', (snapshot) => {
             const data = snapshot.val();
-            // 履歴テーブルに追加する前に一度テーブルをクリアしてから追加
-            if (historyTable.rows.length > 1) {
-                historyTable.innerHTML = ""; // すべての行を削除
-            }
             addHistoryRow(data.fullData, data.head3, data.next7);
         });
     </script>
